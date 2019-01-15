@@ -1,0 +1,293 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <wiringPi.h>
+#include <softPwm.h>
+
+int main (int argc, char **argv)
+{
+	printf("*** Program Sterowania Szachownicy *** \n");
+	
+	if (wiringPiSetup() == -1) 	{printf("Nie mozna wystartowac wiringPi \n"); return 1;}
+	
+	void Pinout(void);
+	void Bazowanie(void);
+	void Bluetooth(int tab[4]);
+	int Ruch1(int L1, int C1);
+	int Ruch2(int L1, int C1, int L2, int C2);
+	int pozycje[4];
+	
+	Pinout();	
+	Bazowanie();
+	while (1){ //rozgrywka//
+	digitalWrite(11,1);
+	Bluetooth(pozycje);
+	printf("Pozycje: %d \n", pozycje[0]);
+	printf("Pozycje: %d \n", pozycje[1]);
+	printf("Pozycje: %d \n", pozycje[2]);
+	printf("Pozycje: %d \n", pozycje[3]);
+	Ruch1(pozycje[0], pozycje[1]);
+	digitalWrite(25,1);
+	delay(500);
+	Ruch2(pozycje[0], pozycje[1], pozycje[2], pozycje[3]);
+	digitalWrite(25,0);
+	digitalWrite(11,0);
+	Bazowanie();
+	}
+		
+			
+	return 0;
+		
+}
+
+void Pinout(void){
+	
+	// Ustawienie wejsc/wyjsc //
+	pinMode(1, OUTPUT); //Sterownik Y Step
+	pinMode(2, OUTPUT); //Sterownik Y Dir
+	pinMode(16, OUTPUT); //Sterownik Y Enable
+	pinMode(3, OUTPUT); //Sterownik X Step
+	pinMode(4, OUTPUT); //Sterownik X Dir
+	pinMode(0, OUTPUT); //Sterownik X Enable
+	pinMode(25, OUTPUT); //elektormagnes
+	pinMode(12, OUTPUT); //elektormagnes
+	pinMode(26, OUTPUT); //LED
+	pinMode(22, OUTPUT); //LED
+	pinMode(21, OUTPUT); //LED
+	pinMode(30, OUTPUT); //LED
+	pinMode(31, OUTPUT); //LED
+	pinMode(11, OUTPUT); //LED
+	pinMode(28, OUTPUT); //Czujnik Y 5V
+	pinMode(24, OUTPUT); //Czujnik X 5V
+	pinMode(29, INPUT); //Czujnik Y on/off
+	pinMode(23, INPUT); //Czujnik X on/off
+	digitalWrite(25,0);
+	digitalWrite(12,1);
+	// silniki off //
+	digitalWrite(16,1);
+	digitalWrite(0,1);
+	// Gaszenie LED //
+	int w=0;
+	digitalWrite(26,w); // LED X
+	digitalWrite(22,w); // BT
+	digitalWrite(21,w); // Ruch1
+	digitalWrite(30,w); // Ruch2
+	digitalWrite(31,w); // LED Y
+	digitalWrite(11,w);
+}
+
+void Bazowanie(void){
+	
+	int x=0;
+	int y=0;	
+	digitalWrite(25,0);
+	digitalWrite(16,0);
+	digitalWrite(0,0);
+	digitalWrite(28,1);
+	digitalWrite(24,1);
+	// LEDY bazowania//
+	digitalWrite(26,1);			
+	digitalWrite(31,1);	
+	x = digitalRead (23);
+	y = digitalRead (29);
+	
+	digitalWrite(4,0);	
+	softPwmCreate(3,10,15);
+	softPwmWrite(3,10);
+	
+	while(1){
+		x = digitalRead (23);
+		if (x<1){
+			printf("X %d \n", x);
+			delay(100);			
+		} else if (x>0){
+			printf("X %d \n", x);
+			softPwmWrite(3,0);
+			digitalWrite(26,0); // LED X off
+			break;
+		}
+	}
+	
+	digitalWrite(2,0);	
+	softPwmCreate(1,10,15);
+	softPwmWrite(1,10);
+	
+	while(1){
+		y = digitalRead (29);
+		if (y<1){			
+			printf("Y %d \n", y);	
+			delay(100);		
+		} else if (y>0){			
+			printf("Y %d \n", y);
+			softPwmWrite(1,0);
+			digitalWrite(31,0); // LED Y off
+			break;
+		}
+	}
+	// Najazd na pole H1 //
+	digitalWrite(4,1);	
+	softPwmCreate(3,10,20);
+	softPwmWrite(3,10);
+	delay(300);
+	softPwmWrite(3,0);
+	
+	digitalWrite(2,1);	
+	softPwmCreate(1,10,20);
+	softPwmWrite(1,10);
+	delay(600);
+	softPwmWrite(1,0);
+	
+}
+
+void Bluetooth(int tab[]){
+	digitalWrite(22,1);
+		FILE* f = fopen("/dev/rfcomm0", "rw");
+	if (f==NULL) {
+		perror("fopen");
+		exit(1);
+	}
+	//obieram linię tekstu, musi kończyć się \n	
+	
+	char pozycja[5];
+	char wsp[9];
+		fgets(wsp, sizeof(wsp), f);
+		if (wsp != NULL) digitalWrite(22,0);
+		
+	printf("Polecenie: %s \n", wsp);
+	digitalWrite(21,0);
+	pozycja[0]=wsp[0];
+	pozycja[1]=wsp[1];
+	pozycja[2]=wsp[6];
+	pozycja[3]=wsp[7];
+	printf("pozycja: %s \n", pozycja);
+	//odczytanie pierwszej litery//
+	if (pozycja[0]=='A'){		
+		tab[0]=7;
+	}else if(pozycja[0]=='B'){
+		tab[0]=6;
+	}else if(pozycja[0]=='C'){
+		tab[0]=5;
+	}else if(pozycja[0]=='D'){
+		tab[0]=4;
+	}else if(pozycja[0]=='E'){
+		tab[0]=3;
+	}else if(pozycja[0]=='F'){
+		tab[0]=2;
+	}else if(pozycja[0]=='G'){
+		tab[0]=1;
+	}else if(pozycja[0]=='H'){
+		tab[0]=0;
+	}else {		
+		printf("pozycja0: blad \n");	
+	}
+	//odczytanie pierwszejcyfry//
+	if (pozycja[1]=='1'){		
+		tab[1]=0;
+	}else if(pozycja[1]=='2'){
+		tab[1]=1;
+	}else if(pozycja[1]=='3'){
+		tab[1]=2;
+	}else if(pozycja[1]=='4'){
+		tab[1]=3;
+	}else if(pozycja[1]=='5'){
+		tab[1]=4;
+	}else if(pozycja[1]=='6'){
+		tab[1]=5;
+	}else if(pozycja[1]=='7'){
+		tab[1]=6;
+	}else if(pozycja[1]=='8'){
+		tab[1]=7;
+	}else {		
+		printf("pozycja0: blad \n");	
+	}
+	//odczytanie drugiej litery//
+	if (pozycja[2]=='A'){		
+		tab[2]=7;
+	}else if(pozycja[2]=='B'){
+		tab[2]=6;
+	}else if(pozycja[2]=='C'){
+		tab[2]=5;
+	}else if(pozycja[2]=='D'){
+		tab[2]=4;
+	}else if(pozycja[2]=='E'){
+		tab[2]=3;
+	}else if(pozycja[2]=='F'){
+		tab[2]=2;
+	}else if(pozycja[2]=='G'){
+		tab[2]=1;
+	}else if(pozycja[2]=='H'){
+		tab[2]=0;
+	}else {		
+		printf("pozycja0: blad \n");	
+	}
+	//odczytanie drugiej cyfry//
+	if (pozycja[3]=='1'){		
+		tab[3]=0;
+	}else if(pozycja[3]=='2'){
+		tab[3]=1;
+	}else if(pozycja[3]=='3'){
+		tab[3]=2;
+	}else if(pozycja[3]=='4'){
+		tab[3]=3;
+	}else if(pozycja[3]=='5'){
+		tab[3]=4;
+	}else if(pozycja[3]=='6'){
+		tab[3]=5;
+	}else if(pozycja[3]=='7'){
+		tab[3]=6;
+	}else if(pozycja[3]=='8'){
+		tab[3]=7;
+	}else {		
+		printf("pozycja0: blad \n");	
+	}	
+	digitalWrite(22,0);
+}
+
+int Ruch1(int L1, int C1){	
+	digitalWrite(21,1);
+	
+	int L=1500*L1;
+	int C=1500*C1;
+	if (L<3100) { L=L+200; }
+	if (C<3100) { C=C+200; }
+		
+	digitalWrite(4,1);	
+	softPwmCreate(3,10,15);
+	softPwmWrite(3,10);
+	delay(L);
+	softPwmWrite(3,0);
+	
+	digitalWrite(2,1);	
+	softPwmCreate(1,10,15);
+	softPwmWrite(1,10);
+	delay(C);
+	softPwmWrite(1,0);
+	
+	digitalWrite(21,0);
+	return 1;
+}
+
+int Ruch2(int L1, int C1, int L2, int C2){
+	
+	digitalWrite(30,1);
+	
+	int L=1500*abs(L2-L1);
+	int C=1500*abs(C2-C1);
+	if (L<3100) { L=L+200; }
+	if (C<3100) { C=C+200; }
+		
+	if ((L2-L1)>0) {digitalWrite(4,1); }else{digitalWrite(4,0); };	
+	softPwmCreate(3,10,15);
+	softPwmWrite(3,10);
+	delay(L);
+	softPwmWrite(3,0);
+	
+	if ((C2-C1)>0) {digitalWrite(2,1); }else{digitalWrite(2,0); };	
+	softPwmCreate(1,10,15);
+	softPwmWrite(1,10);
+	delay(C);
+	softPwmWrite(1,0);
+	
+	digitalWrite(30,0);
+	return 1;
+}
